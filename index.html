@@ -253,7 +253,7 @@
         }
 
         /* أزرار هكر */
-        .action-btn, .channel-btn {
+        .action-btn, .channel-btn, .download-btn {
             width: 100%;
             padding: 14px;
             border-radius: 60px;
@@ -285,6 +285,28 @@
             transform: translateY(-2px);
             box-shadow: 0 0 24px #00ff66;
             color: white;
+        }
+
+        .download-btn {
+            background: linear-gradient(95deg, #0a2a1a, #004d2e);
+            border: 2px solid #ffcc00;
+            color: #ffffb0;
+            text-shadow: 0 0 6px #ffcc00;
+            box-shadow: 0 0 15px #ffcc33;
+            animation: pulseDownload 1.2s infinite ease-in-out;
+        }
+
+        .download-btn:hover {
+            background: #00994d;
+            transform: scale(1.01);
+            box-shadow: 0 0 28px #ffdd55;
+            border-color: #ffffaa;
+        }
+
+        @keyframes pulseDownload {
+            0% { box-shadow: 0 0 5px #ffcc00; border-color: #ffcc44; }
+            50% { box-shadow: 0 0 22px #ffee66; border-color: #ffff88; }
+            100% { box-shadow: 0 0 5px #ffcc00; border-color: #ffcc44; }
         }
 
         .channel-btn {
@@ -366,6 +388,10 @@
             pointer-events: none;
         }
 
+        .hidden {
+            display: none;
+        }
+
         @media (max-width: 550px) {
             .main-glitch { font-size: 1.6rem; }
             .tremux-badge span:last-child { font-size: 1rem; }
@@ -414,6 +440,9 @@
 
         <!-- زر تلقيم الصورة -->
         <button class="action-btn" id="stegBtn">🧿 تـلـغيم الـصوره الأن 🧿</button>
+        
+        <!-- زر التحميل الجديد الذي يظهر فقط بعد التلغيم -->
+        <button class="download-btn hidden" id="downloadStegBtn">⬇️ تحميل الصورة يـحب ⬇️</button>
 
         <!-- زر قناتي -->
         <button class="channel-btn" id="channelBtn">📡 قناتي | TELEGRAM</button>
@@ -432,6 +461,7 @@
         const fileNameSpan = document.getElementById('fileNameDisplay');
         const telegramInput = document.getElementById('telegramUsername');
         const stegBtn = document.getElementById('stegBtn');
+        const downloadBtn = document.getElementById('downloadStegBtn');
         const channelBtn = document.getElementById('channelBtn');
         const footerCredit = document.getElementById('footerCredit');
         const toastDiv = document.getElementById('toastMsg');
@@ -441,10 +471,13 @@
         const CHANNEL_LINK = "https://t.me/Whiskybots";
 
         let selectedImageFile = null;
+        let currentStegBlob = null;      // تخزين الصورة الملغومة مؤقتاً
+        let currentStegFileName = null;   // الاسم المقترح للتحميل
 
         // === خلفية matrix 010101 ديناميكية ===
         function generateMatrixBg() {
             const container = document.getElementById('matrixBg');
+            if(!container) return;
             container.innerHTML = '';
             const cols = Math.floor(window.innerWidth / 28);
             const rows = 25;
@@ -482,8 +515,33 @@
             }, duration);
         }
 
+        // إخفاء زر التحميل مؤقتاً
+        function hideDownloadButton() {
+            if(downloadBtn) {
+                downloadBtn.classList.add('hidden');
+                currentStegBlob = null;
+                currentStegFileName = null;
+            }
+        }
+        
+        // إظهار زر التحميل مع البيانات الجديدة
+        function showDownloadButton(blob, suggestedName) {
+            currentStegBlob = blob;
+            currentStegFileName = suggestedName;
+            if(downloadBtn) {
+                downloadBtn.classList.remove('hidden');
+                // إضافة تأثير وميض
+                downloadBtn.style.animation = 'none';
+                setTimeout(() => {
+                    if(downloadBtn) downloadBtn.style.animation = 'pulseDownload 1.2s infinite ease-in-out';
+                }, 20);
+            }
+        }
+
         // اختيار الصورة
         imageInput.addEventListener('change', function(e) {
+            // عند اختيار صورة جديدة، نُخفي زر التحميل لأن الصورة القديمة لم تعد صالحة
+            hideDownloadButton();
             if (imageInput.files && imageInput.files.length > 0) {
                 const file = imageInput.files[0];
                 if (!file.type.startsWith('image/')) {
@@ -538,7 +596,7 @@
                             for (let bitPos = 7; bitPos >= 0; bitPos--) {
                                 if (bitIdx >= totalBits) break;
                                 const bit = (byteVal >> bitPos) & 1;
-                                const pixelIdx = bitIdx; // بكسل لكل بت (نستخدم القناة الحمراء)
+                                const pixelIdx = bitIdx;
                                 if (pixelIdx * 4 >= data.length) break;
                                 const redPos = pixelIdx * 4;
                                 let r = data[redPos];
@@ -562,19 +620,58 @@
             });
         }
         
-        function downloadBlob(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        // دالة تحميل آمنة للمتصفحات (جميع المتصفحات)
+        function downloadBlobSafely(blob, filename) {
+            if (!blob) {
+                showToast("⚠️ لا توجد صورة محضرة للتحميل!", 2000);
+                return false;
+            }
+            try {
+                // الطريقة الأكثر توافقًا: استخدام createObjectURL + عنصر <a>
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                // إضافة إلى DOM ثم إزالته (لضمان التوافق)
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // تحرير الرابط بعد فترة قصيرة
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                }, 150);
+                return true;
+            } catch (err) {
+                console.error("Download error:", err);
+                showToast("❌ فشل التحميل: " + err.message, 2500);
+                return false;
+            }
+        }
+        
+        // زر التحميل الجديد: يستخدم الصورة المخزنة currentStegBlob
+        if(downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                if (currentStegBlob && currentStegFileName) {
+                    const success = downloadBlobSafely(currentStegBlob, currentStegFileName);
+                    if(success) {
+                        showToast(`✅ بدء تحميل: ${currentStegFileName}`, 2200);
+                        // وميض إضافي للاحتفال
+                        downloadBtn.style.transform = 'scale(0.98)';
+                        setTimeout(() => { if(downloadBtn) downloadBtn.style.transform = ''; }, 200);
+                    } else {
+                        showToast("⚠️ عذراً، حدث خلل أثناء التحميل", 2000);
+                    }
+                } else {
+                    showToast("🔴 لا توجد صورة ملغومة جديدة! قم بالتلغيم أولاً.", 2000);
+                }
+            });
         }
         
         // زر التلغيم الرئيسي
         stegBtn.addEventListener('click', async () => {
+            // قبل بدء عملية جديدة نخفي زر التحميل لأنه سيصبح غير صالح
+            hideDownloadButton();
+            
             if (!selectedImageFile) {
                 showToast("⚠️ [ACCESS DENIED] لا توجد صورة محددة", 2000);
                 return;
@@ -598,13 +695,25 @@
                 const dot = original.lastIndexOf('.');
                 const base = dot !== -1 ? original.substring(0,dot) : original;
                 const newName = `${base}_st3g4n0.png`;
-                downloadBlob(steggedBlob, newName);
-                showToast("✔️ تم التلغيم بنجاح! الصورة جاهزة للتحميل.", 2800);
-                // إضافة وميض احتفالي للفوتر
+                
+                // تخزين البيانات لإظهار زر التحميل
+                showDownloadButton(steggedBlob, newName);
+                
+                // رسالة نجاح توضح ظهور زر التحميل
+                showToast("✔️ تم التلغيم بنجاح! اضغط زر التحميل لتنزيل الصورة.", 3000);
+                
+                // تأثير إضافي: جعل التذييل يومض
                 setTimeout(() => { footerCredit.style.textShadow = "0 0 0px"; }, 1800);
+                
+                // تمرير لطيف إلى زر التحميل ليصبح مرئياً
+                if(downloadBtn && downloadBtn.classList.contains('hidden') === false) {
+                    downloadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             } catch(err) {
                 console.error(err);
                 showToast(`🔥 فشل التلغيم: ${err.message}`, 3000);
+                // في حالة الفشل نضمن إخفاء زر التحميل
+                hideDownloadButton();
             }
         });
         
@@ -615,7 +724,7 @@
         });
         
         // تأكيد التذييل الأصلي في البداية
-        footerCredit.innerText = "2025 جميع الحقوق التطوير محفوظة لدى 𝑾𝑯𝑰𝑺𝑲𝒀 𝑬𝑳𝒀𝑶𝑼𝑻𝑼𝑩𝑬𝑹";
+        footerCredit.innerText = "2026 جميع الحقوق التطوير محفوظة لدى 𝑾𝑯𝑰𝑺𝑲𝒀 𝑬𝑳𝒀𝑶𝑼𝑻𝑼𝑩𝑬𝑹";
         
         // حركة نيون إضافية
         setInterval(() => {
@@ -625,6 +734,13 @@
                 setTimeout(() => { if(glitchTitle) glitchTitle.style.animation = 'glitchText 1.5s infinite'; }, 10);
             }
         }, 4000);
+        
+        // عندما يغير المستخدم الصورة أو يحاول الخروج، نقوم بتنظيف البيانات الحساسة من الذاكرة (اختياري)
+        window.addEventListener('beforeunload', () => {
+            if(currentStegBlob) {
+                // لا نستطيع تحريره هنا بشكل كامل لكن نتركه
+            }
+        });
     })();
 </script>
 </body>
